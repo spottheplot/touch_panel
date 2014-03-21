@@ -26,14 +26,18 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.MediaController;
+import android.widget.RelativeLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.VideoView;
 
 import com.hoho.android.usbserial.driver.UsbSerialDriver;
+import com.hoho.android.usbserial.examples.GCodeParameters.Parameter;
 import com.hoho.android.usbserial.util.HexDump;
 import com.hoho.android.usbserial.util.SerialInputOutputManager;
 
@@ -60,15 +64,15 @@ public class SerialConsoleActivity extends Activity {
      * can get away with it because both activities will run in the same
      * process, and this is a simple demo.
      */
+    
+    // Physic system constants
+    
+    private final int bedWidth = 160;
+    private final int bedHeight = 160; 
+    
+    // Class variables
+    
     private static UsbSerialDriver sDriver = null;
-
-    private TextView mTitleTextView;
-    private TextView textViewConsole;
-    
-    private SeekBar seekBarX;
-    private SeekBar seekBarZ;
-    
-    private CheckBox checkBoxPulse;
     
     private int semaphore;
     private String buffer;
@@ -79,6 +83,18 @@ public class SerialConsoleActivity extends Activity {
     
     private static GCodeProtocol gcode = null;
     private GCodeParameters parameters = new GCodeParameters();
+    
+    // Interface
+    
+    private TextView mTitleTextView;
+    private TextView textViewConsole;
+    
+    private RelativeLayout rLayout;
+    
+    private SeekBar seekBarX;
+    private SeekBar seekBarZ;
+    
+    private CheckBox checkBoxPulse;
 
     private final SerialInputOutputManager.Listener mListener =
             new SerialInputOutputManager.Listener() {
@@ -102,46 +118,33 @@ public class SerialConsoleActivity extends Activity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Request Full Screen
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+            WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        
         setContentView(R.layout.serial_console);
+        
+        rLayout = (RelativeLayout) findViewById(R.id.parentView);
         mTitleTextView = (TextView) findViewById(R.id.demoTitle);
         textViewConsole = (TextView) findViewById(R.id.textView1);
         textViewConsole.setText("Start...");
-        
         Button home = (Button) findViewById(R.id.buttonHome);
-        seekBarX = (SeekBar) findViewById(R.id.seekBarX);
-        seekBarZ = (SeekBar) findViewById(R.id.seekBarZ);
+        seekBarX = (SeekBar) findViewById(R.id.seekBarX); // Movement Speed
+        seekBarZ = (SeekBar) findViewById(R.id.seekBarZ); // Touch Speed
         checkBoxPulse = (CheckBox) findViewById(R.id.checkBoxPulse);
         
         semaphore = 1;
         buffer = "";
         
+        // Set robot XY workspace
+//        gcode.SendCommand("M208 X" + String.valueOf(bedHeight) + " Y" + String.valueOf(bedWidth));
+        
         home.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                
-                gcode.SetToAbsolutePositioning();
-                
-                parameters.Reset();
-                parameters.AddParameter(GCodeParameters.Parameter.FeedRate, 1500);
-                textViewConsole.append(" " + semaphore);
-                //while (semaphore != 1);
-                //semaphore--;
-                gcode.ControlledMove(parameters);
-                
-                parameters.Reset();
-                parameters.AddParameter(GCodeParameters.Parameter.AxisZ, 20);
-                //while (semaphore != 1);
-                textViewConsole.append(" " + semaphore);
-                //semaphore--;
-                gcode.ControlledMove(parameters);
-                
-                parameters.Reset();
-                parameters.AddParameter(GCodeParameters.Parameter.AxisX, 0);
-                parameters.AddParameter(GCodeParameters.Parameter.AxisY, 0);
-                //while (semaphore != 1);
-                textViewConsole.append(" " + semaphore);
-                //semaphore--;
-                gcode.Homing(parameters);
+                getOrigin();
             }
         });
     }
@@ -152,40 +155,15 @@ public class SerialConsoleActivity extends Activity {
         int y = (int)event.getY();
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
+                moveXY(x, y);
+                
             case MotionEvent.ACTION_MOVE:
-                parameters.Reset();
-                parameters.AddParameter(GCodeParameters.Parameter.FeedRate, seekBarX.getProgress());
-                //while (semaphore != 1);
-                //semaphore--;
-                gcode.ControlledMove(parameters);
-                
-                parameters.Reset();
-                parameters.AddParameter(GCodeParameters.Parameter.AxisX, x/5);
-                parameters.AddParameter(GCodeParameters.Parameter.AxisY, y/8);
-                //while (semaphore != 1);
-                //semaphore--;
-                gcode.ControlledMove(parameters);
-                
+                moveXY(x, y);
                 break;
+                
             case MotionEvent.ACTION_UP:
                 if (checkBoxPulse.isChecked()) {
-                    parameters.Reset();
-                    parameters.AddParameter(GCodeParameters.Parameter.FeedRate, seekBarZ.getProgress());
-                    //while (semaphore != 1);
-                    //semaphore--;
-                    gcode.ControlledMove(parameters);
-                    
-                    parameters.Reset();
-                    parameters.AddParameter(GCodeParameters.Parameter.AxisZ, 10);
-                    //while (semaphore != 1);
-                    //semaphore--;
-                    gcode.ControlledMove(parameters);
-                    
-                    parameters.Reset();
-                    parameters.AddParameter(GCodeParameters.Parameter.AxisZ, 20);
-                    //while (semaphore != 1);
-                    //semaphore--;
-                    gcode.ControlledMove(parameters);
+                    tap();
                 }
                 break;
         }
@@ -257,28 +235,111 @@ public class SerialConsoleActivity extends Activity {
 
     private void updateReceivedData(byte[] data) {
         
-        for (int i = 0; i < data.length; i++) {
-            buffer += (char) data[i];
-        }
+//        for (int i = 0; i < data.length; i++) {
+//            buffer += (char) data[i];
+//        }
+//        
+//        textViewConsole.setText("");
+//        
+//        boolean cont = true;
+//        
+//        while (cont) {
+//
+//            if ((buffer.length() >= 3) && (buffer.charAt(0) == 'o') && (buffer.charAt(1) == 'k') && (buffer.charAt(2) == '\n')) {
+//                //semaphore++;
+//                buffer = buffer.substring(3);                    parameters.Reset();
+        parameters.AddParameter(GCodeParameters.Parameter.FeedRate, seekBarZ.getProgress());
+        //while (semaphore != 1);
+        //semaphore--;
+        gcode.ControlledMove(parameters);
         
-        textViewConsole.setText("");
+        parameters.Reset();
+        parameters.AddParameter(GCodeParameters.Parameter.AxisZ, 10);
+        //while (semaphore != 1);
+        //semaphore--;
+        gcode.ControlledMove(parameters);
         
-        boolean cont = true;
+        parameters.Reset();
+        parameters.AddParameter(GCodeParameters.Parameter.AxisZ, 20);
+        //while (semaphore != 1);
+        //semaphore--;
+        gcode.ControlledMove(parameters);
+//                textViewConsole.append("TRUE\n");
+//            }
+//            else {
+//                cont = false;
+//                textViewConsole.append("FALSE\n");
+//            }
+//        }
+//        
+//        textViewConsole.append(buffer + ": " + semaphore + HexDump.dumpHexString(data) + "\n");
+    }
+    
+    private void getOrigin() {
+        gcode.SetToAbsolutePositioning();
         
-        while (cont) {
-
-            if ((buffer.length() >= 3) && (buffer.charAt(0) == 'o') && (buffer.charAt(1) == 'k') && (buffer.charAt(2) == '\n')) {
-                //semaphore++;
-                buffer = buffer.substring(3);
-                textViewConsole.append("TRUE\n");
-            }
-            else {
-                cont = false;
-                textViewConsole.append("FALSE\n");
-            }
-        }
+        parameters.Reset();
+        parameters.AddParameter(GCodeParameters.Parameter.FeedRate, 1500);
+        textViewConsole.append(" " + semaphore);
+        //while (semaphore != 1);
+        //semaphore--;
+        gcode.ControlledMove(parameters);
         
-        textViewConsole.append(buffer + ": " + semaphore + HexDump.dumpHexString(data) + "\n");
+        parameters.Reset();
+        parameters.AddParameter(GCodeParameters.Parameter.AxisZ, 20);
+        //while (semaphore != 1);
+        textViewConsole.append(" " + semaphore);
+        //semaphore--;
+        gcode.ControlledMove(parameters);
+        
+        parameters.Reset();
+        parameters.AddParameter(GCodeParameters.Parameter.AxisX, 0);
+        parameters.AddParameter(GCodeParameters.Parameter.AxisY, 0);
+        parameters.AddParameter(GCodeParameters.Parameter.AxisZ, 0);
+        //while (semaphore != 1);
+        textViewConsole.append(" " + semaphore);
+        //semaphore--;
+        gcode.Homing(parameters);
+        gcode.SetPosition(parameters);
+    }
+        
+    private void moveXY(int x, int y) {
+        parameters.Reset();
+        parameters.AddParameter(GCodeParameters.Parameter.FeedRate, seekBarX.getProgress());
+        //while (semaphore != 1);
+        //semaphore--;
+        gcode.ControlledMove(parameters);
+        
+        parameters.Reset();
+        parameters.AddParameter(GCodeParameters.Parameter.AxisX, x * bedWidth / rLayout.getWidth());
+        parameters.AddParameter(GCodeParameters.Parameter.AxisY, y * bedHeight / rLayout.getHeight());
+        //while (semaphore != 1);
+        //semaphore--;
+        gcode.ControlledMove(parameters);
+        
+        textViewConsole.setText("Axis X: " + x + " AxisY: " + y + '\n' +
+                                "Real X =" + x * bedWidth / rLayout.getWidth() + " Real Y " + y * bedHeight / rLayout.getHeight() + '\n' +
+                                "View X " + rLayout.getWidth() + " View Y " + rLayout.getHeight());
+    }
+    
+    private void tap() {
+        parameters.Reset();
+        parameters.AddParameter(GCodeParameters.Parameter.FeedRate, seekBarZ.getProgress());
+        //while (semaphore != 1);
+        //semaphore--;
+        gcode.ControlledMove(parameters);
+        
+        parameters.Reset();
+        parameters.AddParameter(GCodeParameters.Parameter.AxisZ, 10);
+        //while (semaphore != 1);
+        //semaphore--;
+        gcode.ControlledMove(parameters);
+        
+        parameters.Reset();
+        parameters.AddParameter(GCodeParameters.Parameter.AxisZ, 20);
+        //while (semaphore != 1);
+        //semaphore--;
+        gcode.ControlledMove(parameters);     
     }
 
     /**

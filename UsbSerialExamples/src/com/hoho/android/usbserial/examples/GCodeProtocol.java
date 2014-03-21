@@ -46,7 +46,7 @@ public class GCodeProtocol {
     }
     
     public void ControlledMove(GCodeParameters parameters) {
-        SendCommand(Commands.ControlledMove.ToString() + parameters.ToString());
+        SendCommand(Commands.ControlledMove.ToString() + parameters.ToString() + " S1");
     }
     
     public void SetToAbsolutePositioning() {
@@ -59,6 +59,14 @@ public class GCodeProtocol {
     
     public void Homing(GCodeParameters parameters) {
         SendCommand(Commands.MoveToOrigin.ToString() + parameters.ToString());
+    }
+    
+    public void SetPosition(GCodeParameters parameters) {
+        SendCommand(Commands.SetPosition.ToString() + parameters.ToString());
+    }
+    
+    public void Dwell(GCodeParameters parameters) {
+        SendCommand(Commands.Dwell.ToString() + parameters.ToString());
     }
     
     public void SendCommand(String cmd) {
