@@ -248,22 +248,6 @@ public class SerialConsoleActivity extends Activity {
 //            if ((buffer.length() >= 3) && (buffer.charAt(0) == 'o') && (buffer.charAt(1) == 'k') && (buffer.charAt(2) == '\n')) {
 //                //semaphore++;
 //                buffer = buffer.substring(3);                    parameters.Reset();
-        parameters.AddParameter(GCodeParameters.Parameter.FeedRate, seekBarZ.getProgress());
-        //while (semaphore != 1);
-        //semaphore--;
-        gcode.ControlledMove(parameters);
-        
-        parameters.Reset();
-        parameters.AddParameter(GCodeParameters.Parameter.AxisZ, 10);
-        //while (semaphore != 1);
-        //semaphore--;
-        gcode.ControlledMove(parameters);
-        
-        parameters.Reset();
-        parameters.AddParameter(GCodeParameters.Parameter.AxisZ, 20);
-        //while (semaphore != 1);
-        //semaphore--;
-        gcode.ControlledMove(parameters);
 //                textViewConsole.append("TRUE\n");
 //            }
 //            else {
